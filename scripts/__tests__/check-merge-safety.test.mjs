@@ -114,3 +114,21 @@ test('FU-136: a failed gh pr view says what gh said', () => {
   assert.equal(status, 1, out);
   assert.match(out, /Could not read PR #7 via 'gh pr view': HTTP 401: Bad credentials/);
 });
+
+test('FU-136: a gh older than the script expects is named in the hint', () => {
+  const { status, out } = run({ MOCK_PR_VIEW_FAIL: 'Unknown JSON field: "someNewField"' });
+  assert.equal(status, 1, out);
+  assert.match(out, /Hint: The installed gh is older than this script expects/);
+});
+
+test('FU-136: a failed gh pr view in post says what gh said too', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cms-'));
+  try {
+    const r = spawnSync('node', [SCRIPT, '7', 'post'], {
+      cwd: dir, encoding: 'utf8',
+      env: { ...process.env, PATH: `${MOCK_BIN}:${process.env.PATH}`, MOCK_PR_VIEW_FAIL: 'HTTP 401: Bad credentials' },
+    });
+    assert.equal(r.status, 1, r.stderr);
+    assert.match(r.stderr, /Could not read PR #7 via 'gh pr view': HTTP 401: Bad credentials/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

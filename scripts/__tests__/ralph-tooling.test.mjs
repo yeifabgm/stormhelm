@@ -653,7 +653,7 @@ test('FU-60: train-merge retargets open dependents to the train base, THEN merge
       cwd: dir, encoding: 'utf8',
       env: {
         ...process.env, PATH: `${MOCK_BIN}:${process.env.PATH}`,
-        MOCK_TRAIN_PRE_JSON: JSON.stringify({ number: 71, state: 'OPEN', mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', headRefOid: headOid, baseRefOid: 'base', isDraft: false, title: 'train first' }),
+        MOCK_TRAIN_PRE_JSON: JSON.stringify({ number: 71, state: 'OPEN', mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', headRefOid: headOid, isDraft: false, title: 'train first' }),
         MOCK_TRAIN_VIEW_JSON: JSON.stringify({ headRefName: 'train-head', baseRefName: 'main', headRefOid: headOid }),
         MOCK_PR_DEPENDENTS_JSON: JSON.stringify([{ number: 72 }, { number: 73 }]),
         MOCK_TRAIN_POST_JSON: JSON.stringify({ number: 71, state: 'MERGED', mergedAt: 'x', mergeCommit: { oid: mergeSha }, headRefOid: headOid }),
@@ -914,7 +914,7 @@ test('FU-100: train-merge refuses a chain member merged out of order', () => {
       cwd: dir, encoding: 'utf8',
       env: {
         ...process.env, PATH: `${MOCK_BIN}:${process.env.PATH}`,
-        MOCK_TRAIN_PRE_JSON: JSON.stringify({ number: 82, state: 'OPEN', mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', headRefOid: 'h82', baseRefOid: 'b', isDraft: false, title: 'chain 2' }),
+        MOCK_TRAIN_PRE_JSON: JSON.stringify({ number: 82, state: 'OPEN', mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', headRefOid: 'h82', isDraft: false, title: 'chain 2' }),
         MOCK_TRAIN_VIEW_JSON: JSON.stringify({ headRefName: 'agent/feature-quotes-2', baseRefName: 'agent/feature-quotes-1', headRefOid: 'h82', labels: [{ name: 'merge-unit:quotes' }, { name: 'chain-order:2' }] }),
         MOCK_UNIT_SIBLINGS_JSON: JSON.stringify([
           { number: 81, labels: [{ name: 'merge-unit:quotes' }, { name: 'chain-order:1' }] },
@@ -942,7 +942,7 @@ test('FU-100: the lowest open chain member is allowed past the order guard', () 
       cwd: dir, encoding: 'utf8',
       env: {
         ...process.env, PATH: `${MOCK_BIN}:${process.env.PATH}`,
-        MOCK_TRAIN_PRE_JSON: JSON.stringify({ number: 81, state: 'OPEN', mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', headRefOid: 'h81', baseRefOid: 'b', isDraft: false, title: 'chain 1' }),
+        MOCK_TRAIN_PRE_JSON: JSON.stringify({ number: 81, state: 'OPEN', mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', headRefOid: 'h81', isDraft: false, title: 'chain 1' }),
         MOCK_TRAIN_VIEW_JSON: JSON.stringify({ headRefName: 'agent/feature-quotes-1', baseRefName: 'main', headRefOid: 'h81', labels: [{ name: 'merge-unit:quotes' }, { name: 'chain-order:1' }] }),
         MOCK_UNIT_SIBLINGS_JSON: JSON.stringify([
           { number: 81, labels: [{ name: 'merge-unit:quotes' }, { name: 'chain-order:1' }] },
@@ -968,7 +968,7 @@ test('FU-104: train-merge refuses a PR still carrying require-§114-confirmation
       cwd: dir, encoding: 'utf8',
       env: {
         ...process.env, PATH: `${MOCK_BIN}:${process.env.PATH}`,
-        MOCK_TRAIN_PRE_JSON: JSON.stringify({ number: 88, state: 'OPEN', mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', headRefOid: 'h88', baseRefOid: 'b', isDraft: false, title: 'confirmation pending' }),
+        MOCK_TRAIN_PRE_JSON: JSON.stringify({ number: 88, state: 'OPEN', mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', headRefOid: 'h88', isDraft: false, title: 'confirmation pending' }),
         MOCK_TRAIN_VIEW_JSON: JSON.stringify({ headRefName: 'agent/feature-hours', baseRefName: 'main', headRefOid: 'h88', labels: [{ name: 'require-§114-confirmation' }] }),
       },
     });

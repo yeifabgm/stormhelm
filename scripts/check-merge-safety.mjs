@@ -47,8 +47,8 @@ if (!/^\d+$/.test(pr)) {
   process.exit(2);
 }
 
-function gh(args) {
-  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+function gh(args, { timeout } = {}) {
+  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout });
 }
 function git(args) {
   return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -73,9 +73,10 @@ if (mode === 'pre') {
       '--json', 'number,state,mergeable,mergeStateStatus,headRefOid,isDraft,title',
     ]));
   } catch (e) {
+    const said = ghSaid(e);
     fail(
-      `Could not read PR #${pr} via 'gh pr view': ${ghSaid(e)}`,
-      'Confirm gh is authenticated and the PR exists in the current repo.',
+      `Could not read PR #${pr} via 'gh pr view': ${said}`,
+      ghHint(said, 'Confirm gh is authenticated and the PR exists in the current repo.'),
     );
   }
 
@@ -200,7 +201,8 @@ function readStatusChecks(prNum) {
 // exists from gh 2.63.0: an older gh (still the packaged one on some distros)
 // rejected the whole `pre` view with "Unknown JSON field", so every `pre`
 // failed. The base oid is display-only, so read it through GraphQL (the schema
-// is server-side, any gh can query it) and never let it block the gate.
+// is server-side, any gh can query it) and never let it block the gate: a
+// failed or stalled read (10 s) prints as unknown.
 function readBaseRefOid(prNum) {
   try {
     const oid = gh([
@@ -208,7 +210,7 @@ function readBaseRefOid(prNum) {
       '-F', 'owner={owner}', '-F', 'name={repo}', '-F', `number=${prNum}`,
       '-f', 'query=query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { baseRefOid } } }',
       '--jq', '.data.repository.pullRequest.baseRefOid',
-    ]).trim();
+    ], { timeout: 10_000 }).trim();
     return /^[0-9a-f]{40,64}$/i.test(oid) ? oid : '';
   } catch { return ''; }
 }
@@ -216,6 +218,11 @@ function readBaseRefOid(prNum) {
 // "Unknown JSON field" above.
 function ghSaid(e) {
   return String(e.stderr || e.message || '').trim().split('\n')[0] || 'no error output';
+}
+function ghHint(said, otherwise) {
+  return /^Unknown JSON field/.test(said)
+    ? 'The installed gh is older than this script expects (`gh --version`); upgrade gh.'
+    : otherwise;
 }
 
 // ---- post-merge -----------------------------------------------------------
@@ -231,7 +238,8 @@ if (mode === 'post') {
       '--json', 'number,state,mergedAt,mergeCommit,headRefOid',
     ]));
   } catch (e) {
-    fail(`Could not read PR #${pr} via 'gh pr view': ${ghSaid(e)}`, 'Confirm gh is authenticated.');
+    const said = ghSaid(e);
+    fail(`Could not read PR #${pr} via 'gh pr view': ${said}`, ghHint(said, 'Confirm gh is authenticated.'));
   }
 
   const { state, mergedAt, mergeCommit, headRefOid } = view;
