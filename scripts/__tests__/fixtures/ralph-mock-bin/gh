@@ -71,6 +71,18 @@ budget:50k}"
       eval "printf '%s\n' \"\$MOCK_PR_BRANCH_${dep}\""
     elif [ -n "${MOCK_PR_LIST:-}" ]; then printf '%s\n' "$MOCK_PR_LIST"; fi ;;
   "pr view")
+    # FOLLOW-UP 136: real gh validates --json field names client-side and a
+    # field newer than the installed gh aborts the whole call. Behave like
+    # gh < 2.63.0, which has no `baseRefOid`.
+    if printf '%s\n' "$@" | grep -q "baseRefOid"; then
+      printf '%s\n' 'Unknown JSON field: "baseRefOid"' >&2
+      exit 1
+    fi
+    # FOLLOW-UP 136: a `gh pr view` that fails (auth, network, a missing PR).
+    if [ -n "${MOCK_PR_VIEW_FAIL:-}" ]; then
+      printf '%s\n' "$MOCK_PR_VIEW_FAIL" >&2
+      exit 1
+    fi
     # FOLLOW-UP 60 (train-merge): JSON views keyed by requested fields.
     # NOTE: no inline JSON defaults — a literal '}' inside ${VAR:-...}
     # terminates the expansion early and emits garbage.
@@ -91,6 +103,16 @@ budget:50k}"
         *" $3 "*) echo "pr #$3" ;;
         *) echo "no pull requests found" >&2; exit 1 ;;
       esac
+    fi ;;
+  "api graphql")
+    # FOLLOW-UP 136: check-merge-safety reads the PR's base oid through
+    # GraphQL; answer it already --jq-filtered, as gh prints it. Unset →
+    # the call fails, the way an unreachable API does.
+    if [ -n "${MOCK_BASE_OID:-}" ]; then
+      printf '%s\n' "$MOCK_BASE_OID"
+    else
+      printf '%s\n' 'error connecting to api.github.com' >&2
+      exit 1
     fi ;;
   "pr edit")
     # FOLLOW-UP 60: ordering log — retarget must precede merge.

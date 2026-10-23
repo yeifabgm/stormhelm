@@ -23,7 +23,7 @@ chmodSync(join(MOCK_BIN, 'gh'), 0o755);
 // A CLEAN, MERGEABLE PR so `pre` reaches the FU-91 expected-checks logic.
 const CLEAN_PR = JSON.stringify({
   number: 7, state: 'OPEN', mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN',
-  headRefOid: 'a'.repeat(40), baseRefOid: 'b'.repeat(40), isDraft: false, title: 'a slice',
+  headRefOid: 'a'.repeat(40), isDraft: false, title: 'a slice',
 });
 const rollup = (checks) => JSON.stringify({ statusCheckRollup: checks });
 const run = (env) => {
@@ -89,4 +89,28 @@ test('FU-91: legacy StatusContext (state PENDING) is read as pending', () => {
   });
   assert.equal(status, 1, out);
   assert.match(out, /pending/i);
+});
+
+// FOLLOW-UP 136: `gh pr view --json` checks field names client-side, and
+// `baseRefOid` only exists from gh 2.63.0. On an older gh every `pre` failed
+// with "Could not read PR" (the mock gh rejects the field the same way).
+test('FU-136: pre works on a gh without baseRefOid and names the base read through GraphQL', () => {
+  const { status, out } = run({
+    MOCK_BASE_OID: 'b'.repeat(40),
+    MOCK_ROLLUP_JSON: rollup([CR('SonarCloud', 'COMPLETED', 'SUCCESS')]),
+  });
+  assert.equal(status, 0, out);
+  assert.match(out, /state=CLEAN, base=bbbbbbb, head=aaaaaaa/);
+});
+
+test('FU-136: the base oid is display-only — an unreadable one prints unknown and does not block', () => {
+  const { status, out } = run({ MOCK_ROLLUP_JSON: rollup([CR('SonarCloud', 'COMPLETED', 'SUCCESS')]) });
+  assert.equal(status, 0, out);
+  assert.match(out, /base=unknown, head=aaaaaaa/);
+});
+
+test('FU-136: a failed gh pr view says what gh said', () => {
+  const { status, out } = run({ MOCK_PR_VIEW_FAIL: 'HTTP 401: Bad credentials' });
+  assert.equal(status, 1, out);
+  assert.match(out, /Could not read PR #7 via 'gh pr view': HTTP 401: Bad credentials/);
 });
