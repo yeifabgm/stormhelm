@@ -47,8 +47,8 @@ if (!/^\d+$/.test(pr)) {
   process.exit(2);
 }
 
-function gh(args) {
-  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+function gh(args, { timeout } = {}) {
+  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout });
 }
 function git(args) {
   return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -67,18 +67,20 @@ function ok(msg) {
 if (mode === 'pre') {
   let view;
   try {
+    // No baseRefOid here: older gh rejects the whole call (FOLLOW-UP 136).
     view = JSON.parse(gh([
       'pr', 'view', pr,
-      '--json', 'number,state,mergeable,mergeStateStatus,headRefOid,baseRefOid,isDraft,title',
+      '--json', 'number,state,mergeable,mergeStateStatus,headRefOid,isDraft,title',
     ]));
   } catch (e) {
+    const said = ghSaid(e);
     fail(
-      `Could not read PR #${pr} via 'gh pr view'.`,
-      'Confirm gh is authenticated and the PR exists in the current repo.',
+      `Could not read PR #${pr} via 'gh pr view': ${said}`,
+      ghHint(said, 'Confirm gh is authenticated and the PR exists in the current repo.'),
     );
   }
 
-  const { state, mergeable, mergeStateStatus, headRefOid, baseRefOid, isDraft, title } = view;
+  const { state, mergeable, mergeStateStatus, headRefOid, isDraft, title } = view;
 
   if (state !== 'OPEN') fail(`PR #${pr} is ${state}, not OPEN.`, 'Re-open the PR or pick a different one.');
   if (isDraft) fail(`PR #${pr} is a draft.`, 'Mark it ready for review before merging (§67).');
@@ -152,8 +154,9 @@ if (mode === 'pre') {
     );
   }
 
+  const baseRefOid = readBaseRefOid(pr);
   ok(
-    `PR #${pr} is mergeable: state=CLEAN, base=${baseRefOid.slice(0, 7)}, head=${headRefOid.slice(0, 7)}.\n` +
+    `PR #${pr} is mergeable: state=CLEAN, base=${baseRefOid ? baseRefOid.slice(0, 7) : 'unknown'}, head=${headRefOid.slice(0, 7)}.\n` +
     (expected.length ? `   Expected checks present + passing: ${expected.join(', ')}.\n` : '') +
     `   Title: ${title}\n` +
     `   After 'gh pr merge', run:  node scripts/check-merge-safety.mjs ${pr} post ${headRefOid}`,
@@ -193,6 +196,35 @@ function readStatusChecks(prNum) {
   }).filter((c) => c.name);
 }
 
+// FU-136 helpers -----------------------------------------------------------
+// `gh pr view --json` checks field names client-side, and `baseRefOid` only
+// exists from gh 2.63.0: an older gh (still the packaged one on some distros)
+// rejected the whole `pre` view with "Unknown JSON field", so every `pre`
+// failed. The base oid is display-only, so read it through GraphQL (the schema
+// is server-side, any gh can query it) and never let it block the gate: a
+// failed or stalled read (10 s) prints as unknown.
+function readBaseRefOid(prNum) {
+  try {
+    const oid = gh([
+      'api', 'graphql',
+      '-F', 'owner={owner}', '-F', 'name={repo}', '-F', `number=${prNum}`,
+      '-f', 'query=query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { baseRefOid } } }',
+      '--jq', '.data.repository.pullRequest.baseRefOid',
+    ], { timeout: 10_000 }).trim();
+    return /^[0-9a-f]{40,64}$/i.test(oid) ? oid : '';
+  } catch { return ''; }
+}
+// The first line gh printed on stderr: a bare "Could not read PR" hid the
+// "Unknown JSON field" above.
+function ghSaid(e) {
+  return String(e.stderr || e.message || '').trim().split('\n')[0] || 'no error output';
+}
+function ghHint(said, otherwise) {
+  return /^Unknown JSON field/.test(said)
+    ? 'The installed gh is older than this script expects (`gh --version`); upgrade gh.'
+    : otherwise;
+}
+
 // ---- post-merge -----------------------------------------------------------
 if (mode === 'post') {
   // 1. Find the merge commit on the default branch that closed this PR.
@@ -206,7 +238,8 @@ if (mode === 'post') {
       '--json', 'number,state,mergedAt,mergeCommit,headRefOid',
     ]));
   } catch (e) {
-    fail(`Could not read PR #${pr} via 'gh pr view'.`, 'Confirm gh is authenticated.');
+    const said = ghSaid(e);
+    fail(`Could not read PR #${pr} via 'gh pr view': ${said}`, ghHint(said, 'Confirm gh is authenticated.'));
   }
 
   const { state, mergedAt, mergeCommit, headRefOid } = view;
